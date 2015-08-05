@@ -20,12 +20,14 @@ package org.apache.maven.surefire.util;
  */
 
 import org.apache.maven.plugin.surefire.runorder.RunEntryStatisticsMap;
+import org.apache.maven.shared.utils.StringUtils;
 import org.apache.maven.surefire.testset.RunOrderParameters;
 
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 
 /**
@@ -92,6 +94,16 @@ public class DefaultRunOrderCalculator
             testClasses.addAll( prioritized );
 
         }
+        else if ( RunOrder.EXPLICIT.equals( runOrder ) )
+        {
+            final String order = System.getProperty( "explicitRunOrder" );
+            if ( order == null )
+            {
+                throw new IllegalArgumentException( "When using 'explicit' runOrder you must set the "
+                    + "'explicitRunOrder' system property to a list of comma separated class names" );
+            }
+            Collections.sort( testClasses, getExplicitComparator( order.split( "," ) ) );
+        }
         else if ( sortOrder != null )
         {
             Collections.sort( testClasses, sortOrder );
@@ -137,6 +149,34 @@ public class DefaultRunOrderCalculator
             public int compare( Class o1, Class o2 )
             {
                 return o1.getName().compareTo( o2.getName() );
+            }
+        };
+    }
+
+    private Comparator<Class> getExplicitComparator( final String[] order )
+    {
+        final HashMap<String, Integer> index = new HashMap<String, Integer>( order.length );
+        for ( int i = 0; i < order.length; i++ )
+        {
+            index.put( order[i], i );
+        }
+        return new Comparator<Class>()
+        {
+            public int compare( Class o1, Class o2 )
+            {
+                Integer i1 = index.get( o1.getName() );
+                Integer i2 = index.get( o2.getName() );
+                if ( i1 == null )
+                {
+                    throw new IllegalArgumentException( "Could not find " + o1.getName()
+                        + " in 'explicitRunOrder': " + StringUtils.join( order, "," ) );
+                }
+                if ( i2 == null )
+                {
+                    throw new IllegalArgumentException( "Could not find " + o2.getName()
+                        + " in 'explicitRunOrder': " + StringUtils.join( order, "," ) );
+                }
+                return i1.compareTo( i2 );
             }
         };
     }
